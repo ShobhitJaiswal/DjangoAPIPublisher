@@ -1,0 +1,330 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from django.contrib import messages
+# from models import UserToken, Publisher, API
+from django.contrib.auth.models import User
+from models import Publisher, API
+from models import UserToken as User
+from django.http import JsonResponse, HttpResponseRedirect
+from django.shortcuts import render, HttpResponse, redirect
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth import authenticate
+import bcrypt, json, requests
+
+# Create your views here.
+
+@csrf_exempt
+def index(request):
+    # print(type(request.session['id']))
+    try:
+        if request.session['id'] is None:
+            return render(request, 'register/login.html')
+        else:
+            return redirect('/success')
+    except Exception as e:
+        print(e)
+        return render(request, 'register/login.html')
+
+
+@csrf_exempt
+def register(request):
+    errors = User.objects.validator(request.POST)
+    if len(errors):
+        for tag, error in errors.iteritems():
+            messages.error(request, error, extra_tags=tag)
+        return redirect('/')
+
+    hashed_password = bcrypt.hashpw(request.POST['password'].encode(), bcrypt.gensalt())
+    user = User.objects.create(first_name=request.POST['first_name'], last_name=request.POST['last_name'], password=hashed_password, email=request.POST['email'])
+    user.save()
+    request.session['id'] = user.id
+    return redirect('/success')
+
+@csrf_exempt
+def login(request):
+    if (User.objects.filter(email=request.POST['login_email']).exists()):
+        user = User.objects.filter(email=request.POST['login_email'])[0]
+        print(user)
+    #     if (bcrypt.checkpw(request.POST['login_password'].encode(), user.password.encode())):
+    #         request.session['id'] = user.id
+        # print(user.username, user.password.encode())
+        usersss = authenticate(username=user.username, password=request.POST['login_password'])
+        print(usersss)
+        request.session['id'] = user.id
+        return redirect('/success')
+    return redirect('/')
+
+@csrf_exempt
+def logout(request):
+    if request.session["id"] is not None:
+        del request.session["id"]
+        # print(request.session["id"])
+        return render(request, 'register/login.html')
+    else:
+        return redirect('/home')
+        
+
+@csrf_exempt
+def success(request):
+    user = User.objects.get(id=request.session['id'])
+    userall=User.objects.all()
+    publisher=Publisher.objects.all()
+    api=API.objects.all()
+
+    context = {
+        "user": user,
+        "userall": userall,
+        "publisher":publisher,
+        "api":api
+    }
+    return render(request, 'register/success.html', context)
+
+@csrf_exempt
+def insert(request):
+    # errors = User.objects.validator(request.POST)
+    # print(errors)
+    # if len(errors):
+    #     for tag, error in errors.iteritems():
+    #         messages.error(request, error, extra_tags=tag)
+    #     return redirect('/')
+    try:
+        hashed_password = bcrypt.hashpw(request.POST['password'].encode(), bcrypt.gensalt())
+        payload={"partnerid":"ott615"}
+        url="http://newott.planetcast.in:6098/gettoken"
+        # print(url)
+        token=requests.post(url,data=payload).json()["Token"].encode('utf-8')
+        print(token)
+        # user = User.objects.create(first_name=request.POST['first_name'], last_name=request.POST['last_name'], password=request.POST['password'], email=request.POST['email'],token=token)
+        user = User.objects.create_user(request.POST['first_name'],request.POST['email'],request.POST['password'])
+        user.token=token
+        user.save()
+        users_data={"id":user.id,"error":False,"Message":"User Added Successfully"}
+        return JsonResponse(users_data,safe=False)
+    except:
+        users_data={"error":True,"Message":"Failed to Add User"}
+        return JsonResponse(users_data,safe=False)
+
+@csrf_exempt
+def update(request):
+    data=request.POST.get("data")
+    print(data)
+    post_data=json.loads(data)
+    try:
+        for i in post_data:
+            users_obj=User.objects.get(id=i['id'])
+            users_obj.first_name=i['first_name']
+            users_obj.last_name=i['last_name']
+            users_obj.email=i['email']
+            users_obj.save()
+        user_data={"error":False,"errorMessage":"Updated Successfully"}
+        return JsonResponse(user_data,safe=False)
+    except:
+        user_data={"error":True,"errorMessage":"Failed to Update Data"}
+        return JsonResponse(user_data,safe=False)
+
+@csrf_exempt
+def delete(request):
+    id=request.POST.get("id")
+    tag=str(request.POST.get("tag"))
+    print(id)
+    if tag=="users":
+        obj=User.objects.get(id=id)
+    elif tag=="publisher":
+        obj=Publisher.objects.get(id=id)
+    elif tag=="api":
+        obj=API.objects.get(name_id=id)
+
+    try:
+        # users_obj=User.objects.get(id=id)
+        # print(users_obj)
+        obj.delete()
+        user_data={"error":False,"errorMessage":"Deleted Successfully"}
+        return JsonResponse(user_data,safe=False)
+    except:
+        user_data={"error":True,"errorMessage":"Failed to Delete User"}
+        return JsonResponse(user_data,safe=False)
+
+@csrf_exempt
+def insertpublisher(request):
+    errors = Publisher.objects.validator(request.POST)
+    print(errors)
+    if len(errors):
+        for tag, error in errors.iteritems():
+            messages.error(request, error, extra_tags=tag)
+        return redirect('/')
+    try:
+        print(request.POST['pname'],request.POST['url'])
+        publisher = Publisher.objects.create(name=request.POST['pname'], url=request.POST['url'])
+        publisher.save()
+        print(publisher)
+        users_data={"id":publisher.id,"error":False,"Message":"Publisher Added Successfully"}
+        print(users_data)
+        return JsonResponse(users_data,safe=False)
+    except Exception as e:
+        print e
+        users_data={"error":True,"Message":"Failed to Add Publisher"}
+        return JsonResponse(users_data,safe=False)
+
+@csrf_exempt
+def updatepublisher(request):
+    data=request.POST.get("data")
+    print(data)
+    post_data=json.loads(data)
+    try:
+        for i in post_data:
+            pub_obj=Publisher.objects.get(id=i['id'])
+            pub_obj.name=i['p_name']
+            pub_obj.url=i['url']
+            pub_obj.save()
+        pub_data={"error":False,"errorMessage":"Updated Successfully"}
+        return JsonResponse(pub_data,safe=False)
+    except:
+        pub_data={"error":True,"errorMessage":"Failed to Update Data"}
+        return JsonResponse(pub_data,safe=False)
+
+@csrf_exempt
+def insertapi(request):
+    # print(request.POST)
+    # print(request.POST['apis'],type(request.POST.getlist('param[]')))
+    param=request.POST.getlist('param[]')
+    params={}
+    for i in range(0,len(param),2):
+        # print(a[i])
+        # print(i)
+        key=param[i]
+        # j=i+1
+        for j in range(i+1,len(param)):
+            # print(a[j])
+            value=param[j]
+            break
+        params[key]=value
+    print(params)
+    errors = API.objects.validator(request.POST)
+    print(errors)
+    if len(errors):
+        for tag, error in errors.iteritems():
+            messages.error(request, error, extra_tags=tag)
+        return redirect('/')
+    try:
+        print(request.POST['apis'])
+        pubname=Publisher.objects.filter(name=request.POST['pub'])
+        for i in pubname:
+            print(i.id)
+            name=i.name
+            # name=pubname.values_list('name',flat=True)[0]
+            # print(name)
+            api = API(name_id=i.id,api=request.POST['apis'],api_parameters=params)
+            api.save()
+            print(api)
+            users_data={"id":api.id,"error":False,"Message":"API Added Successfully for "+request.POST['pub']}
+            print(users_data)
+            return JsonResponse(users_data,safe=False)
+    except Exception as e:
+        print e
+        users_data={"error":True,"Message":"Failed to Add API"}
+        return JsonResponse(users_data,safe=False)
+
+@csrf_exempt
+def updateapi(request):
+    data=request.POST.get("data")
+    print(data)
+    post_data=json.loads(data)
+    try:
+        for i in post_data:
+            api_obj=API.objects.get(name_id=i['id'])
+            api_obj.api=i['api_name']
+            api_obj.save()
+        pub_data={"error":False,"errorMessage":"Updated Successfully"}
+        return JsonResponse(pub_data,safe=False)
+    except Exception as e:
+        print(e)
+        pub_data={"error":True,"errorMessage":"Failed to Update Data"}
+        return JsonResponse(pub_data,safe=False)
+
+@csrf_exempt
+def deleteapi(request):
+    id=request.POST.get("id")
+    # tag=str(request.POST.get("tag"))
+    print(id)
+    try:
+        obj=API.objects.get(id=id)
+        print(obj)
+        obj.delete()
+        user_data={"error":False,"errorMessage":"Deleted Successfully"}
+        return JsonResponse(user_data,safe=False)
+    except Exception as e:
+        print(e)
+        user_data={"error":True,"errorMessage":"Failed to Delete User"}
+        return JsonResponse(user_data,safe=False)
+
+@csrf_exempt
+def home(request):    
+    try:
+        tag=str(request.POST.get("tag"))
+    except:
+        tag=""
+    print(tag)
+    if tag == "None":
+        publisher=Publisher.objects.all()
+        context = {
+            "publisher":publisher,
+        }
+        print(context)
+        return render(request, 'register/home.html',context)
+    elif tag == "response":
+        publish=str(request.POST.get("publisher"))
+        uri=str(request.POST.get("uri"))
+        print(publish,uri)
+        try:
+            id=request.session['id']
+            # print(id)
+            user=User.objects.get(id=id)
+            token=user.token
+            # print(token)
+            publisher=Publisher.objects.filter(name=publish) 
+            for i in publisher:
+                print(i.url)
+                api=API.objects.filter(api=uri)
+                for j in api:
+                    print(j.api_parameters)
+                    headers={"token":token}
+                    url=i.url+uri
+                    x=requests.post(url,headers=headers,data=eval(j.api_parameters))
+                    print(x.status_code)
+                    data={
+                        "result":x.text,
+                        "elapsed":x.elapsed.total_seconds(),
+                        "status":x.status_code,
+                    }
+                    return JsonResponse(data,safe=False)
+        except Exception as e:
+            data={
+                "result":e,
+                }
+            return JsonResponse(data,safe=False)
+
+    else:
+        context=[]
+        publisher=Publisher.objects.filter(name=tag) 
+        for i in publisher:
+            print(i.url)
+            api=list(API.objects.filter(name_id=i.id))
+            for j in api:
+                # print(j.id)
+                # print(j.api)
+                # print(type(eval(j.api_parameters)))
+                # data={j.api}
+                context.append(j.api)
+                # url=i.url+j.api
+                # print(url)
+                # headers={}
+                # x=requests.post(url,headers=headers,data=eval(j.api_parameters))
+                # print(x.text)
+            data={
+                "api":context,
+                "tag":tag,
+            }
+        print(context)
+        # return render(request, 'register/home.html',context)
+        return JsonResponse(data,safe=False)
+

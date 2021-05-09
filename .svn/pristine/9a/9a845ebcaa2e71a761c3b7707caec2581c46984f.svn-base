@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Success</title>
+    <meta charset="utf-8">
+    {% load static %}
+	<meta content="width=device-width, initial-scale=1, shrink-to-fit=no" name="viewport">
+	<link rel="stylesheet" type="text/css" href="{% static 'register/css/style.css' %}">
+	<link rel="stylesheet" type="text/css" href="{% static 'register/css/bootstrap.min.css' %}">
+        <script src="{% static 'register/js/jquery-1.12.4.min.js'%}"></script>
+        <script src="{% static 'register/js/popper.min.js'%}"></script>
+        <script src="{% static 'register/js/bootstrap.min.js'%}"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- <h1>Hi Shobhit</h1> -->
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton1" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <span id="selected1">Select Publisher Name</span><span class="caret"></span></button>
+            <div class="dropdown-menu" id="ddm1" aria-labelledby="dropdownMenuButton">
+            {% for i in publisher %}              
+              <a class="dropdown-item" id="dd_{{ i.id }}" value="{{ i.name }}">{{ i.name }}</a>
+              {% endfor %}
+            </div>
+            <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton2" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span id="selected2">Select API</span><span class="caret"></span></button>
+                <div class="dropdown-menu" id="ddm2" aria-labelledby="dropdownMenuButton">
+                </div>
+                </div>
+          </div>
+          <div class="form-group">
+            <label for="comment">Comment:</label>
+            <textarea class="form-control" rows="20" id="comment1"></textarea>
+          </div> 
+    </div>
+</body>
+<script>
+  var tag="";
+      $('#ddm1 a').click(function(){
+        //   console.log($(this).text());
+        var tag=$(this).text();
+        $('#selected1').text($(this).text());
+        $.ajax({
+                url:'{% url 'home' %}',
+                type:'POST',
+                data:{"tag":tag}
+            })
+            .done(function(response){
+                console.log(response["api"]);
+                var dropdownadd = "";
+                $.each(response["api"],function(index,value){
+                  console.log(index,value);
+                  dropdownadd+='<a class="dropdown-item" id="dd_'+index+'" value="'+response["url"]+value+'" value2="'+response["tag"]+'" onclick="setval(this)">'+value+'</a>';
+                  document.getElementById("ddm2").innerHTML = dropdownadd;
+                });
+            });
+        
+        });
+
+  function setval(value){
+    // console.log(document.getElementById(value.id).innerText);
+    var tag="response";
+    var textn=document.getElementById(value.id).getAttribute("value2");
+    var apin=document.getElementById(value.id).innerText;
+    $('#selected2').text(document.getElementById(value.id).innerText);
+    $.ajax({
+                url:'{% url 'home' %}',
+                type:'POST',
+                data:{"tag":tag,"publisher":textn,"uri":apin}
+            })
+            .done(function(response){
+                console.log(response["result"]);
+                document.getElementById("comment1").innerHTML=response["result"];
+  //               var dropdownadd = "";
+  //               $.each(response["api"],function(index,value){
+  //                 console.log(index,value);
+  //                 dropdownadd+='<a class="dropdown-item" id="dd_'+index+'" value="'+response["url"]+value+'" onclick="setval(this)">'+value+'</a>';
+  //                 document.getElementById("ddm2").innerHTML = dropdownadd;
+  //               });
+  //           });
+  });
+}
+
+</script>
+</html>
